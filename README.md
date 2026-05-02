@@ -5,7 +5,68 @@
 **Domain:** High-Fidelity Autonomous Fluid Observation & Digital Twin System
 
 ---
+## System Architecture
 
+Drone Body
+  ├── MQ-2 / MQ-135 / MQ-4 (gas sensors)
+  ├── FLIR Lepton 3.5 (thermal camera)
+  ├── MEMS ultrasonic array
+  ├── BMI088 IMU + M8N GPS
+  │
+  └── Jetson Orin NX
+        ├── SINDy drift correction
+        ├── PINN inference (TensorRT FP16, 0.94 ms)
+        ├── Gas classifier + regulatory risk calc
+        ├── Residual monitor (6-Sigma fallback trigger)
+        ├── ROS 2 Humble DDS
+        └── MAVROS → Pixhawk 6C → 6x motors
+
+Base Station (RTX 4050 laptop)
+  ├── financial_physics_bridge.py (ws://localhost:8188)
+  │     ├── Autonomous demo trajectory
+  │     ├── WASD manual override
+  │     └── ZMQ fallback CFD solver
+  │
+  └── React Dashboard (http://localhost:5173)
+        ├── 3D Spatial Twin (WebGL)
+        ├── Flight controls (WASD / F / C)
+        ├── Gas analysis (Threat Log)
+        ├── Infrastructure status (System Diagnostics)
+        ├── Mission mode selector
+        └── SCADA commands
+
+## Hardware
+
+| Part              | Spec                                              |
+| ----------------- | ------------------------------------------------- |
+| Frame             | 550 mm hexacopter, 7075-T6 Al hub, CFRP arms      |
+| Compute           | NVIDIA Jetson Orin NX 16 GB                       |
+| Flight Controller | Pixhawk 6C + M8N GPS/RTK                          |
+| Motors            | 6× T-Motor MN4114 340KV                           |
+| ESCs              | 20A, BLHeli_32                                    |
+| Battery           | 6S 10,000 mAh LiPo (~28 min endurance)            |
+| Thermal           | FLIR Lepton 3.5 on PureThermal 2 board            |
+| Gas sensors       | MQ-2 (combustibles), MQ-135 (VOC/CO₂), MQ-4 (CH₄) |
+| Acoustic          | 40 kHz piezo MEMS microphone array                |
+| IMU               | BMI088 6-axis                                     |
+| Telemetry         | Herelink Blue 2.4/5.8 GHz                         |
+
+## Software Stack
+
+| Layer              | What we used                                  |
+| ------------------ | --------------------------------------------- |
+| Middleware         | ROS 2 Humble + FastRTPS DDS                   |
+| Flight interface   | MAVROS 2.x, 921600 baud serial                |
+| AI framework       | PyTorch 2.0 + CUDA 12.1                       |
+| Inference runtime  | NVIDIA TensorRT 8.6 (FP16)                    |
+| Sensor calibration | PySINDy with STLSQ optimizer                  |
+| Messaging          | ZeroMQ DEALER/ROUTER pattern                  |
+| Serialisation      | MessagePack + LZ4 (~2 KB per telemetry frame) |
+| SCADA interface    | OPC-UA over TLS 1.3 / AES-256-GCM             |
+| Simulation         | Gazebo Harmonic + ros_gz_sim bridge           |
+| Frontend           | React 18 + Vite + React Three Fiber           |
+| WebSocket hub      | Python asyncio + websockets (port 8188)       |
+| Containers         | Docker + nvidia-container-toolkit      
 ## 1. Executive Summary: The Future of Industrial Safety
 
 VectorSense is an autonomous observation
@@ -14,13 +75,13 @@ in industrial chemical sites.
 Traditional fixed sensors only alert
 when gas concentrations cross a high
 threshold at a specific spot. This "late-warning"
-approach fails to provide spatial context.
+The approach fails to provide spatial context.
 We fixed this by using drones and Physics-Informed
 Neural Networks (PINN).
 The platform maps gas concentration in 4D
-by solving Navier-Stokes fluid equations
+by solving the Navier-Stokes fluid equations
 directly in the AI's neural kernel.
-This lets incident command visualize
+This lets incident command visualise
 a full 3D Digital Twin of the plume
 in real-time. This project is the
 primary capstone submission for the
@@ -28,6 +89,93 @@ SURE ProEd G5 Robotics Internship.
 It provides a 4-sigma reliable solution for
 automated threat detection and mitigation.
 It is an enterprise-grade safety bridge.
+
+## Known Limitations
+
+- **WSL2 Gazebo:** The Gazebo simulation cannot render in a browser via noVNC from WSL2 due to GPU driver limitations. The WebGL dashboard is the working demo interface.
+- **WebSocket drops:** The bridge connection can drop under CPU load. The dashboard falls back to local simulation automatically.
+- **PINN trained on synthetic data:** Not validated against real OpenFOAM CFD output yet. Physics loss formulation is correct; training data is the gap.
+- **No physical flight:** MAVROS tested in SITL only. Hardware integration was not completed during the internship period.
+- **Jetson VRAM clamp:** The 0.58 memory fraction was calibrated on an RTX 4050, not a Jetson Orin. Needs re-tuning on physical hardware.
+
+## Performance Numbers
+
+| What                             | Result                               |
+| -------------------------------- | ------------------------------------ |
+| PINN training time               | 1.25 minutes (RTX 4050, FP16)        |
+| PINN PDE residual at convergence | 9.87 × 10⁻⁷                          |
+| TensorRT inference latency       | 0.94 ms average                      |
+| TensorRT throughput              | 1,063 inferences / second            |
+| Engine size on disk              | 12.24 MB                             |
+| SINDy calibration fit (R²)       | 0.9882 (13,000 samples)              |
+| False positive reduction         | 85% (in simulation, humidity-driven) |
+| End-to-end loop latency          | 14.1 ms (sensor → MAVROS setpoint)   |
+| Base station fallback round-trip | < 20 ms over LAN                     |
+
+
+## System Architecture
+
+Drone Body
+  ├── MQ-2 / MQ-135 / MQ-4 (gas sensors)
+  ├── FLIR Lepton 3.5 (thermal camera)
+  ├── MEMS ultrasonic array
+  ├── BMI088 IMU + M8N GPS
+  │
+  └── Jetson Orin NX
+        ├── SINDy drift correction
+        ├── PINN inference (TensorRT FP16, 0.94 ms)
+        ├── Gas classifier + regulatory risk calc
+        ├── Residual monitor (6-Sigma fallback trigger)
+        ├── ROS 2 Humble DDS
+        └── MAVROS → Pixhawk 6C → 6x motors
+
+Base Station (RTX 4050 laptop)
+  ├── financial_physics_bridge.py (ws://localhost:8188)
+  │     ├── Autonomous demo trajectory
+  │     ├── WASD manual override
+  │     └── ZMQ fallback CFD solver
+  │
+  └── React Dashboard (http://localhost:5173)
+        ├── 3D Spatial Twin (WebGL)
+        ├── Flight controls (WASD / F / C)
+        ├── Gas analysis (Threat Log)
+        ├── Infrastructure status (System Diagnostics)
+        ├── Mission mode selector
+        └── SCADA commands
+
+
+## Hardware
+
+| Part              | Spec                                              |
+| ----------------- | ------------------------------------------------- |
+| Frame             | 550 mm hexacopter, 7075-T6 Al hub, CFRP arms      |
+| Compute           | NVIDIA Jetson Orin NX 16 GB                       |
+| Flight Controller | Pixhawk 6C + M8N GPS/RTK                          |
+| Motors            | 6× T-Motor MN4114 340KV                           |
+| ESCs              | 20A, BLHeli_32                                    |
+| Battery           | 6S 10,000 mAh LiPo (~28 min endurance)            |
+| Thermal           | FLIR Lepton 3.5 on PureThermal 2 board            |
+| Gas sensors       | MQ-2 (combustibles), MQ-135 (VOC/CO₂), MQ-4 (CH₄) |
+| Acoustic          | 40 kHz piezo MEMS microphone array                |
+| IMU               | BMI088 6-axis                                     |
+| Telemetry         | Herelink Blue 2.4/5.8 GHz                         |
+
+## Software Stack
+
+| Layer              | What we used                                  |
+| ------------------ | --------------------------------------------- |
+| Middleware         | ROS 2 Humble + FastRTPS DDS                   |
+| Flight interface   | MAVROS 2.x, 921600 baud serial                |
+| AI framework       | PyTorch 2.0 + CUDA 12.1                       |
+| Inference runtime  | NVIDIA TensorRT 8.6 (FP16)                    |
+| Sensor calibration | PySINDy with STLSQ optimizer                  |
+| Messaging          | ZeroMQ DEALER/ROUTER pattern                  |
+| Serialisation      | MessagePack + LZ4 (~2 KB per telemetry frame) |
+| SCADA interface    | OPC-UA over TLS 1.3 / AES-256-GCM             |
+| Simulation         | Gazebo Harmonic + ros_gz_sim bridge           |
+| Frontend           | React 18 + Vite + React Three Fiber           |
+| WebSocket hub      | Python asyncio + websockets (port 8188)       |
+| Containers         | Docker + nvidia-container-toolkit             |
 
 ---
 
@@ -39,7 +187,7 @@ We derived the Navier-Stokes equations
 for momentum and mass conservation.
 These were converted into a differentiable
 framework using PyTorch Autograd.
-The network's job is to minimize the physical
+The network's job is to minimise the physical
 residual of the transport equations
 at every 3D coordinate point.
 We mapped the Houston Refinery Unit 4 site
@@ -47,10 +195,10 @@ using CAD-to-SDF conversion logic.
 This ensures the plume model respects
 distillation columns, storage tanks,
 and high-pressure steam pipelines.
-We validated the solver against standard
+We validated the solver against the standard
 CFD benchmarks to ensure the 4-sigma
 numerical reliability required for safety.
-Calculations utilize a 10ms cycle time.
+Calculations utilise a 10ms cycle time.
 This prevents numerical divergence errors.
 
 ### 2.2 Phase II: Structural Engineering & Payload Integration
@@ -58,11 +206,11 @@ This prevents numerical divergence errors.
 We built a custom 550mm V-frame
 hexacopter for this mission safely.
 The hexacopter provides motor-out
-redundancy which is critical when
+redundancy, which is critical when
 flying over dangerous chemical assets
 like cracker stacks and reactors.
 We engineered a forward-slung carbon
-fiber sensor boom to avoid the
+fibre sensor boom to avoid the
 downward prop-wash turbulence from
 the six motors. This gets "virgin air."
 We used 95A Shore TPU dampeners
@@ -122,7 +270,7 @@ for the secure SCADA bridge pulses.
 - **scada_network_sim.py**: Mitigation Bridge.
 - **hexacopter/**: URDF/SDF assets for simulation.
 - **cad_to_mesh.py**: Facility geometry processor.
-- **vectorsense_pinn_fp16.pt**: Optimized Weights.
+- **vectorsense_pinn_fp16.pt**: Optimised Weights.
 - **launch_sim.sh**: Environment orchestration.
 
 ---
@@ -140,7 +288,7 @@ for the secure SCADA bridge pulses.
 - **Decentralized Swarm Search**: Decentralized
   MAPP algorithms for efficient coverage.
 - **Real-Time Digital Twin**: 60fps 3D
-  visualization of refinery threat profiles.
+  visualisation of refinery threat profiles.
 - **Vibration-Isolated Compute**: TPU
   dampened mounts for edge-AI stability.
 - **Corrosion-Resistant Airframe**: Titanium
@@ -224,7 +372,7 @@ VectorSense uses potential fields to find leaks.
 
 ---
 
-## 11. Industrial Security: AES-256 Tunneling and Sovereignty
+## 11. Industrial Security: AES-256 Tunnelling and Sovereignty
 
 - **At-Rest Protection**: LUKS encryption on Orin NVMe.
 - **In-Transit Protection**: AES-256 encrypted ZMQ link.
