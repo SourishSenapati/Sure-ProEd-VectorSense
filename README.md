@@ -338,4 +338,6 @@ VectorSense uses potential fields to find leaks.
 
 ---
 Verification of work https://drive.google.com/drive/u/0/folders/1i_0I-JKNnhNovfH5kzARh5N_qdmySbup
+
+Presentation in the form of PDF https://github.com/SourishSenapati/Sure-ProEd-VectorSense/blob/main/VectorSense_Presentation.pdf
 _EOF — VectorSense Systems ._
