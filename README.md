@@ -337,7 +337,9 @@ VectorSense uses potential fields to find leaks.
 10. **Bitmask**: Binary code for SCADA valve commands auth.
 
 ---
-Verification of work https://drive.google.com/drive/u/0/folders/1i_0I-JKNnhNovfH5kzARh5N_qdmySbup
+Verification of service work https://drive.google.com/drive/u/0/folders/1i_0I-JKNnhNovfH5kzARh5N_qdmySbup
+
+https://github.com/SourishSenapati/Sure-ProEd-VectorSense/tree/main/services
 
 Presentation in the form of PDF https://github.com/SourishSenapati/Sure-ProEd-VectorSense/blob/main/VectorSense_Presentation.pdf
 _EOF — VectorSense Systems ._
